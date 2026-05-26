@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Detective: The Rogue Outlier</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #0d1117;
+            color: #c9d1d9;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        /* Layout split: 75% Viewport for Gameplay, 25% for Footer Controls */
+        #game-container {
+            height: 75vh;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+        }
+        header {
+            text-align: center;
+            width: 100%;
+        }
+        h1 {
+            color: #58a6ff;
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+        }
+        .stats-deck {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            background: #161b22;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #30363d;
+        }
+        .stat-box {
+            font-size: 1rem;
+            font-weight: bold;
+        }
+        #timer { color: #ff7b72; }
+        #score { color: #7ee787; }
+
+        /* Data Stream Container */
+        #data-stream {
+            width: 100%;
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin: 20px 0;
+        }
+        /* Target Safety Targets - Min height 55px */
+        .data-row {
+            background-color: #21262d;
+            border: 2px solid #30363d;
+            color: #ffcf7e;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            text-align: left;
+            width: 100%;
+            cursor: pointer;
+            min-height: 55px;
+            transition: transform 0.1s, background-color 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .data-row:active {
+            transform: scale(0.98);
+        }
+
+        /* Control / Feedback Deck */
+        footer {
+            height: 25vh;
+            background-color: #161b22;
+            border-top: 2px solid #30363d;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+        #feedback {
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: center;
+            min-height: 24px;
+        }
+        .action-btn {
+            background-color: #238636;
+            color: white;
+            border: none;
+            padding: 15px 32px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            min-height: 50px;
+            width: 100%;
+            max-width: 250px;
+        }
+        .action-btn:disabled {
+            background-color: #30363d;
+            color: #8b949e;
+            cursor: not-allowed;
+        }
+        /* Hidden Screen Reader Logger */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="sr-alerts" class="sr-only" aria-live="polite"></div>
+
+    <main id="game-container">
+        <header>
+            <h1>Data Detective</h1>
+            <div class="stats-deck">
+                <div class="stat-box">Score: <span id="score">0</span></div>
+                <div class="stat-box">Time Left: <span id="timer">15s</span></div>
+            </div>
+        </header>
+
+        <div id="data-stream" role="list" aria-label="Data log rows. Spot the outlier.">
+            </div>
+    </main>
+
+    <footer>
+        <div id="feedback" role="status">Press Start to Clean Data</div>
+        <button id="start-btn" class="action-btn" onclick="startGame()">Start Game</button>
+    </footer>
+
+    <script>
+        let score = 0;
+        let timeLeft = 15;
+        let timerInterval = null;
+        let isGameActive = false;
+        let currentOutlierIndex = -1;
+        let gameSpeed = 15; // Starting time per round
+
+        // SILLY DATA GENERATION DICTIONARIES
+        const normalTemplates = [
+            { type: "USER_TAP", action: "button_click", status: 200 },
+            { type: "GAME_TICK", action: "render_frame", status: 200 },
+            { type: "PLAYER_SAVE", action: "sync_cloud", status: 200 }
+        ];
+
+        const outlierTemplates = [
+            { type: "GNOME_INTRUSION", action: "stole_mushrooms", status: 404 },
+            { type: "COFFEE_SPILL", action: "keyboard_short", status: 500 },
+            { type: "CAT_WALK", action: "keyboard_mash_asdf", status: 418 },
+            { type: "TIME_PARADOX", action: "yesterday_is_now", status: 999 }
+        ];
+
+        const srAlerts = document.getElementById("sr-alerts");
+        const scoreDisplay = document.getElementById("score");
+        const timerDisplay = document.getElementById("timer");
+        const dataStream = document.getElementById("data-stream");
+        const feedback = document.getElementById("feedback");
+        const startBtn = document.getElementById("start-btn");
+
+        function startGame() {
+            score = 0;
+            gameSpeed = 15;
+            isGameActive = true;
+            startBtn.disabled = true;
+            feedback.textContent = "Find the corrupted log anomaly!";
+            scoreDisplay.textContent = score;
+            generateRound();
+        }
+
+        function generateRound() {
+            if (!isGameActive) return;
+            clearInterval(timerInterval);
+            
+            timeLeft = Math.max(5, gameSpeed - Math.floor(score / 3)); // Speeds up as score increases
+            timerDisplay.textContent = timeLeft + "s";
+
+            // Start countdown timer loop
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerDisplay.textContent = timeLeft + "s";
+                if (timeLeft <= 0) {
+                    endGame("Time expired! The servers crashed.");
+                }
+            }, 1000);
+
+            // Clean previous rows
+            dataStream.innerHTML = "";
+
+            // Determine which option will be our messy outlier row
+            currentOutlierIndex = Math.floor(Math.random() * 3);
+            const chosenNormal = normalTemplates[Math.floor(Math.random() * normalTemplates.length)];
+            const chosenOutlier = outlierTemplates[Math.floor(Math.random() * outlierTemplates.length)];
+
+            for (let i = 0; i < 3; i++) {
+                const rowBtn = document.createElement("button");
+                rowBtn.className = "data-row";
+                rowBtn.setAttribute("role", "listitem");
+
+                let dataObj = (i === currentOutlierIndex) ? chosenOutlier : chosenNormal;
+                
+                // Construct a messy string output resembling arbitrary log lines
+                let timestamp = new Date().toISOString().substring(11, 19);
+                rowBtn.textContent = `[${timestamp}] LOG_${dataObj.type} :: ${dataObj.action} (${dataObj.status})`;
+                
+                // Handle touch/click interactions
+                rowBtn.onclick = () => checkSelection(i);
+                dataStream.appendChild(rowBtn);
+            }
+
+            announceToScreenReader(`Round generated. Three rows visible. Find the anomalous entry.`);
+        }
+
+        function checkSelection(selectedIndex) {
+            if (!isGameActive) return;
+
+            if (selectedIndex === currentOutlierIndex) {
+                score++;
+                scoreDisplay.textContent = score;
+                feedback.style.color = "#7ee787";
+                feedback.textContent = "Data Cleaned! Anomaly isolated.";
+                announceToScreenReader("Correct. Anomaly cleaned.");
+                generateRound();
+            } else {
+                endGame("False Positive! You deleted production data.");
+            }
+        }
+
+        function endGame(message) {
+            isGameActive = false;
+            clearInterval(timerInterval);
+            feedback.style.color = "#ff7b72";
+            feedback.textContent = message;
+            startBtn.disabled = false;
+            startBtn.textContent = "Analyze Again";
+            dataStream.innerHTML = "";
+            announceToScreenReader(`Game Over. ${message} Your final validation score was ${score}.`);
+        }
+
+        function announceToScreenReader(text) {
+            srAlerts.textContent = text;
+        }
+    </script>
+</body>
+</html>
