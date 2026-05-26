@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Accessible Mobile Catch Game</title>
+    <style>
+        /* CSS for Layout and Accessibility */
+        :root {
+            --bg-color: #121212;
+            --text-color: #ffffff;
+            --basket-color: #00ffcc;
+            --star-color: #ffcc00;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            touch-action: none; /* Prevents mobile scrolling while playing */
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            max-width: 500px;
+            height: 80vh;
+            border: 2px solid #333;
+            background: #1a1a1a;
+            overflow: hidden;
+        }
+
+        /* Large font size for readability */
+        #ui-layer {
+            display: flex;
+            justify-content: space-between;
+            padding: 15px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            background: rgba(0,0,0,0.5);
+        }
+
+        /* High contrast game elements */
+        #basket {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            width: 80px; /* Large hitbox for mobile fingers */
+            height: 30px;
+            background-color: var(--basket-color);
+            border-radius: 5px;
+            transform: translateX(-50%);
+        }
+
+        #star {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 35px;
+            height: 35px;
+            background-color: var(--star-color);
+            border-radius: 50%;
+            transform: translateX(-50%);
+        }
+
+        /* Accessible Control Buttons for tap-based navigation */
+        #controls {
+            display: flex;
+            width: 100%;
+            max-width: 500px;
+            height: 15vh;
+        }
+
+        .btn {
+            flex: 1;
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            font-size: 1.2rem;
+            font-weight: bold;
+            outline: none;
+        }
+
+        .btn:active {
+            background: #555;
+        }
+
+        /* Utility class to hide text visually but keep it for screen readers */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="accessible-announcer" class="sr-only" aria-live="polite"></div>
+
+    <main id="game-container">
+        <div id="ui-layer">
+            <span id="score-display">Score: 0</span>
+            <span id="lives-display">Lives: 3</span>
+        </div>
+        
+        <div id="star" role="img" aria-label="Falling Star"></div>
+        <div id="basket" role="img" aria-label="Basket Player"></div>
+    </main>
+
+    <footer id="controls">
+        <button class="btn" id="left-btn" aria-label="Move Basket Left">◀ LEFT</button>
+        <button class="btn" id="right-btn" aria-label="Move Basket Right">RIGHT ▶</button>
+    </footer>
+
+    <script>
+        // JavaScript Game Logic
+        const basket = document.getElementById('basket');
+        const star = document.getElementById('star');
+        const scoreDisplay = document.getElementById('score-display');
+        const livesDisplay = document.getElementById('lives-display');
+        const announcer = document.getElementById('accessible-announcer');
+        const container = document.getElementById('game-container');
+
+        // Game State Variables
+        let score = 0;
+        let lives = 3;
+        let basketX = container.clientWidth / 2;
+        let starX = Math.random() * (container.clientWidth - 40) + 20;
+        let starY = 40;
+        let speed = 4;
+        let gameActive = true;
+
+        const containerWidth = container.clientWidth;
+
+        // Render positions
+        function updatePositions() {
+            basket.style.left = `${basketX}px`;
+            star.style.left = `${starX}px`;
+            star.style.top = `${starY}px`;
+        }
+
+        // Core Game Loop
+        function gameLoop() {
+            if (!gameActive) return;
+
+            // Move the star down
+            starY += speed;
+
+            // Check for ground collision (Missed the star)
+            if (starY > container.clientHeight - 40) {
+                lives--;
+                livesDisplay.textContent = `Lives: ${lives}`;
+                announcer.textContent = `Missed. ${lives} lives remaining.`;
+                resetStar();
+                
+                if (lives <= 0) {
+                    gameOver();
+                    return;
+                }
+            }
+
+            // Check for basket collision (Caught the star)
+            let basketLeft = basketX - 40;
+            let basketRight = basketX + 40;
+            if (starY >= container.clientHeight - 50 && starY <= container.clientHeight - 20) {
+                if (starX >= basketLeft && starX <= basketRight) {
+                    score++;
+                    scoreDisplay.textContent = `Score: ${score}`;
+                    announcer.textContent = `Caught! Score is ${score}.`;
+                    speed += 0.2; // Slowly ramp up difficulty
+                    resetStar();
+                }
+            }
+
+            updatePositions();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function resetStar() {
+            starY = 40;
+            starX = Math.random() * (containerWidth - 40) + 20;
+        }
+
+        function gameOver() {
+            gameActive = false;
+            announcer.textContent = `Game Over. Your final score is ${score}. Tap anywhere to restart.`;
+            alert(`Game Over! Final Score: ${score}`);
+            // Reset game
+            score = 0;
+            lives = 3;
+            speed = 4;
+            scoreDisplay.textContent = `Score: 0`;
+            livesDisplay.textContent = `Lives: 3`;
+            gameActive = true;
+            resetStar();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- MOBILE CONTROLS & ACCESSIBILITY ---
+
+        // 1. Touch/Drag Event for mobile screens
+        container.addEventListener('touchmove', (e) => {
+            if (!gameActive) return;
+            let touch = e.touches[0];
+            let rect = container.getBoundingClientRect();
+            // Bound movement within the container
+            let relativeX = touch.clientX - rect.left;
+            if (relativeX > 40 && relativeX < containerWidth - 40) {
+                basketX = relativeX;
+                basket.style.left = `${basketX}px`;
+            }
+        });
+
+        // 2. Button Tap Controls (For motor-impaired accessibility or alternative input)
+        document.getElementById('left-btn').addEventListener('click', () => {
+            if (basketX > 50) basketX -= 30;
+            basket.style.left = `${basketX}px`;
+        });
+
+        document.getElementById('right-btn').addEventListener('click', () => {
+            if (basketX < containerWidth - 50) basketX += 30;
+            basket.style.left = `${basketX}px`;
+        });
+
+        // Start the game
+        updatePositions();
+        gameLoop();
+    </script>
+</body>
+</html>
