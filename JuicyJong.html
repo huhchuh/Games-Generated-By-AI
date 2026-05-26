@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>JuicyJong Mobile Simulator</title>
+    <style>
+        :root {
+            --bg-color: #1a0b2e;
+            --panel-bg: #2d124d;
+            --accent-color: #ff3377;
+            --text-color: #ffffff;
+            --safe-zone: 74vh;
+            --control-zone: 24vh;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow: hidden;
+            position: fixed;
+            width: 100vw;
+            height: 100vh;
+            touch-action: none;
+        }
+
+        /* Viewport Boundaries Strategy for Embedded W3 Windows & Mobile Safari */
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #play-area {
+            height: var(--safe-zone);
+            width: 100vw;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+            background: radial-gradient(circle, #3d1b66 0%, #1a0b2e 100%);
+        }
+
+        #grid-board {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            grid-template-rows: repeat(7, 1fr);
+            gap: 4px;
+            width: 100%;
+            max-width: 420px;
+            height: 100%;
+            max-height: 520px;
+            background-color: rgba(0, 0, 0, 0.25);
+            padding: 6px;
+            border-radius: 12px;
+            border: 2px solid #4d2480;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.6);
+            position: relative;
+        }
+
+        .tile {
+            background: linear-gradient(135deg, #592596 0%, #371461 100%);
+            border-radius: 8px;
+            border: 1px solid #7939c7;
+            box-shadow: 0 3px 0 #220b3d, 0 4px 6px rgba(0,0,0,0.4);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2rem;
+            cursor: pointer;
+            transition: transform 0.1s ease, background 0.1s ease;
+            position: relative;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+
+        .tile.selected {
+            background: linear-gradient(135deg, var(--accent-color) 0%, #b30047 100%);
+            border-color: #ff99bb;
+            transform: scale(0.95);
+            box-shadow: 0 0 12px var(--accent-color);
+            z-index: 10;
+        }
+
+        .tile.empty {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            pointer-events: none;
+        }
+
+        /* Score & Action Operations Dashboard Zone */
+        #control-panel {
+            height: var(--control-zone);
+            width: 100vw;
+            background-color: var(--panel-bg);
+            border-top: 3px solid #441b73;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            align-items: center;
+            padding: 10px 15px;
+            z-index: 100;
+        }
+
+        .metrics-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            max-width: 450px;
+        }
+
+        .metric-box {
+            background: rgba(0,0,0,0.3);
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 1px solid #52248a;
+            min-width: 100px;
+            text-align: center;
+        }
+
+        .metric-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: #b399ff;
+            letter-spacing: 1px;
+            margin-bottom: 2px;
+        }
+
+        .metric-value {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #00ffcc;
+        }
+
+        .btn-action {
+            background: linear-gradient(180deg, #00e6b8 0%, #00997a 100%);
+            color: #00221a;
+            border: none;
+            padding: 12px 28px;
+            font-size: 1rem;
+            font-weight: bold;
+            border-radius: 8px;
+            box-shadow: 0 4px 0 #006652;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            min-height: 48px; /* Touch Target Compliance */
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .btn-action:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #006652;
+        }
+
+        /* Screen Reader Fallback */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="accessibility-announcer" class="sr-only" aria-live="polite"></div>
+
+        <main id="play-area">
+            <div id="grid-board"></div>
+        </main>
+
+        <footer id="control-panel">
+            <div class="metrics-row">
+                <div class="metric-box">
+                    <div class="metric-label">Score</div>
+                    <div id="score-display" class="metric-value">0</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">Target</div>
+                    <div id="target-display" class="metric-value">Match 3</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">Moves</div>
+                    <div id="moves-display" class="metric-value">0</div>
+                </div>
+            </div>
+
+            <div class="metrics-row" style="justify-content: center;">
+                <button id="reset-btn" class="btn-action">Restart Board</button>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // Engine Settings configuration variables 
+        const COLS = 6;
+        const ROWS = 7;
+        const FRUITS = ['🍎', '🍊', '🍋', '🍉', '🍇', '🍒'];
+        
+        let boardState = [];
+        let score = 0;
+        let moves = 0;
+        let selectedIndex = null;
+        
+        // Touch Drag Processing Trackers
+        let touchStartX = 0;
+        let touchStartY = 0;
+        const SWIPE_THRESHOLD = 30; // Min pixels to trigger slide actions cleanly
+
+        const boardElement = document.getElementById('grid-board');
+        const scoreDisplay = document.getElementById('score-display');
+        const movesDisplay = document.getElementById('moves-display');
+        const resetBtn = document.getElementById('reset-btn');
+        const announcer = document.getElementById('accessibility-announcer');
+
+        // Initialize Engine Systems
+        function initGame() {
+            score = 0;
+            moves = 0;
+            selectedIndex = null;
+            scoreDisplay.textContent = score;
+            movesDisplay.textContent = moves;
+            announce("New JuicyJong game initialized. Board populated with colorful items.");
+            generateValidBoard();
+            renderBoard();
+        }
+
+        // Populates an initial grid with structural elements
+        function generateValidBoard() {
+            boardState = [];
+            for (let r = 0; r < ROWS; r++) {
+                let rowArray = [];
+                for (let c = 0; c < COLS; c++) {
+                    // Seed standard elements, leaving some empty blocks at top over standard level configurations
+                    if (r < 1) {
+                        rowArray.push('');
+                    } else {
+                        const randomFruit = FRUITS[Math.floor(Math.random() * FRUITS.length)];
+                        rowArray.push(randomFruit);
+                    }
+                }
+                boardState.push(rowArray);
+            }
+            // Run automatic pass verification to clear immediate generation matches safely
+            collapseMatches(true);
+        }
+
+        // Render arrays directly into browser hardware DOM views
+        function renderBoard() {
+            boardElement.innerHTML = '';
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const tileValue = boardState[r][c];
+                    const tileDiv = document.createElement('div');
+                    
+                    if (tileValue === '') {
+                        tileDiv.className = 'tile empty';
+                    } else {
+                        tileDiv.className = 'tile';
+                        tileDiv.textContent = tileValue;
+                        tileDiv.dataset.row = r;
+                        tileDiv.dataset.col = c;
+                        tileDiv.setAttribute('role', 'button');
+                        tileDiv.setAttribute('aria-label', `Row ${r + 1}, Column ${c + 1}: ${tileValue}`);
+                        
+                        const linearIndex = r * COLS + c;
+                        if (selectedIndex === linearIndex) {
+                            tileDiv.classList.add('selected');
+                        }
+
+                        // Web UI Pointer Touch Hooks
+                        tileDiv.addEventListener('touchstart', handleTouchStart, { passive: true });
+                        tileDiv.addEventListener('touchend', handleTouchEnd, { passive: true });
+                        tileDiv.addEventListener('mousedown', handleMouseDown);
+                    }
+                    boardElement.appendChild(tileDiv);
+                }
+            }
+        }
+
+        // Accessibility Audio Engine Log dispatcher
+        function announce(text) {
+            announcer.textContent = text;
+        }
+
+        // Mechanics Engine: Swap adjacent items 
+        function swapTiles(r1, c1, r2, c2) {
+            // Verify bounding parameters 
+            if (r2 < 0 || r2 >= ROWS || c2 < 0 || c2 >= COLS) return false;
+            
+            // Cannot slide into an empty air context block structurally if gravity is not active there
+            const temp = boardState[r1][c1];
+            boardState[r1][c1] = boardState[r2][c2];
+            boardState[r2][c2] = temp;
+            return true;
+        }
+
+        // Processing Loop: Evaluates matches & applies collapse mechanics
+        function collapseMatches(isInitialization = false) {
+            let matchedCoords = new Set();
+
+            // 1. Scan Horizontal Match Rows
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS - 2; c++) {
+                    let type = boardState[r][c];
+                    if (type && type === boardState[r][c+1] && type === boardState[r][c+2]) {
+                        matchedCoords.add(`${r},${c}`);
+                        matchedCoords.add(`${r},${c+1}`);
+                        matchedCoords.add(`${r},${c+2}`);
+                    }
+                }
+            }
+
+            // 2. Scan Vertical Match Columns
+            for (let c = 0; c < COLS; c++) {
+                for (let r = 0; r < ROWS - 2; r++) {
+                    let type = boardState[r][c];
+                    if (type && type === boardState[r+1][c] && type === boardState[r+2][c]) {
+                        matchedCoords.add(`${r},${c}`);
+                        matchedCoords.add(`${r+1},${c}`);
+                        matchedCoords.add(`${r+2},${c}`);
+                    }
+                }
+            }
+
+            // 3. Process matched groups if exist
+            if (matchedCoords.size > 0) {
+                if (!isInitialization) {
+                    score += matchedCoords.size * 10;
+                    scoreDisplay.textContent = score;
+                    announce(`Match combined! Exploded ${matchedCoords.size} items. New score is ${score}.`);
+                }
+
+                // Delete items
+                matchedCoords.forEach(coord => {
+                    const [r, c] = coord.split(',').map(Number);
+                    boardState[r][c] = '';
+                });
+
+                // Apply Board Gravity Adjustments
+                applyGravity();
+                
+                // Recursive step verification to capture double combo drops
+                collapseMatches(isInitialization);
+                return true;
+            }
+            return false;
+        }
+
+        // Falling Engine gravity loop shift logic
+        function applyGravity() {
+            for (let c = 0; c < COLS; c++) {
+                // Read columns bottom-up
+                for (let r = ROWS - 1; r >= 0; r--) {
+                    if (boardState[r][c] === '') {
+                        // Find matching piece above it
+                        for (let rAbove = r - 1; rAbove >= 0; rAbove--) {
+                            if (boardState[rAbove][c] !== '') {
+                                boardState[r][c] = boardState[rAbove][c];
+                                boardState[rAbove][c] = '';
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                // Repopulate Top Row entries if empty
+                for (let r = 0; r < ROWS; r++) {
+                    if (boardState[r][c] === '') {
+                        boardState[r][c] = FRUITS[Math.floor(Math.random() * FRUITS.length)];
+                    }
+                }
+            }
+        }
+
+        // Process user dynamic input slide instructions
+        function executeMove(direction) {
+            if (selectedIndex === null) return;
+            
+            const r1 = Math.floor(selectedIndex / COLS);
+            const c1 = selectedIndex % COLS;
+            let r2 = r1;
+            let c2 = c1;
+
+            if (direction === 'up') r2--;
+            else if (direction === 'down') r2++;
+            else if (direction === 'left') c2--;
+            else if (direction === 'right') c2++;
+
+            // Swap and evaluate metrics
+            if (swapTiles(r1, c1, r2, c2)) {
+                moves++;
+                movesDisplay.textContent = moves;
+                
+                const clearedAny = collapseMatches(false);
+                
+                // Revert slide layout action if no match occurs
+                if (!clearedAny) {
+                    swapTiles(r2, c2, r1, c1);
+                    announce("No matching block combination formed. Slide reversed.");
+                } else {
+                    announce(`Moved selection successfully ${direction}.`);
+                }
+            }
+
+            selectedIndex = null;
+            renderBoard();
+        }
+
+        /* Input Interaction Handlers */
+        function handleMouseDown(e) {
+            const tile = e.currentTarget;
+            const r = parseInt(tile.dataset.row);
+            const c = parseInt(tile.dataset.col);
+            const index = r * COLS + c;
+
+            if (selectedIndex === null) {
+                selectedIndex = index;
+                renderBoard();
+            } else {
+                // Secondary press evaluation context checking if next block is a neighbor
+                const rPrev = Math.floor(selectedIndex / COLS);
+                const cPrev = selectedIndex % COLS;
+                const diffRow = Math.abs(r - rPrev);
+                const diffCol = Math.abs(c - cPrev);
+
+                if ((diffRow === 1 && diffCol === 0) || (diffRow === 0 && diffCol === 1)) {
+                    let dir = '';
+                    if (r < rPrev) dir = 'up';
+                    else if (r > rPrev) dir = 'down';
+                    else if (c < cPrev) dir = 'left';
+                    else if (c > cPrev) dir = 'right';
+                    
+                    executeMove(dir);
+                } else {
+                    selectedIndex = index;
+                    renderBoard();
+                }
+            }
+        }
+
+        function handleTouchStart(e) {
+            const touch = e.touches[0];
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+            
+            const tile = e.currentTarget;
+            const r = parseInt(tile.dataset.row);
+            const c = parseInt(tile.dataset.col);
+            selectedIndex = r * COLS + c;
+        }
+
+        function handleTouchEnd(e) {
+            if (selectedIndex === null) return;
+            const touch = e.changedTouches[0];
+            const diffX = touch.clientX - touchStartX;
+            const diffY = touch.clientY - touchStartY;
+
+            // Isolate swipe axes vectors cleanly
+            if (Math.max(Math.abs(diffX), Math.abs(diffY)) > SWIPE_THRESHOLD) {
+                if (Math.abs(diffX) > Math.abs(diffY)) {
+                    executeMove(diffX > 0 ? 'right' : 'left');
+                } else {
+                    executeMove(diffY > 0 ? 'down' : 'up');
+                }
+            }
+        }
+
+        resetBtn.addEventListener('click', initGame);
+        
+        // Boot Engine Sequence
+        window.addEventListener('DOMContentLoaded', initGame);
+    </script>
+</body>
+</html>
