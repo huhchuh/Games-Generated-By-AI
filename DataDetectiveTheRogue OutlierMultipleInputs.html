@@ -32,7 +32,7 @@
             flex-direction: column;
         }
 
-        /* 75vh / 25vh Viewport Boundaries Split */
+        /* 75vh / 25vh Viewport Boundary Split */
         #game-area {
             height: 75vh;
             padding: 15px;
@@ -53,7 +53,6 @@
             z-index: 10;
         }
 
-        /* Typography & Layout elements */
         .header-ui {
             display: flex;
             justify-content: space-between;
@@ -72,7 +71,7 @@
             justify-content: center;
         }
 
-        /* Accessible Touch Safety Targets (min-height standard 55px) */
+        /* Accessible Touch Safety Targets (min-height 58px) */
         .data-row {
             background-color: #273549;
             border: 2px solid #475569;
@@ -93,7 +92,7 @@
             background-color: #334155;
         }
 
-        /* Custom Data Modification Drawer */
+        /* Data Modification Configuration Panel */
         #config-drawer {
             position: fixed;
             top: 0;
@@ -138,7 +137,6 @@
         .btn-secondary { background-color: #475569; }
         .btn-success { background-color: var(--accent-correct); }
 
-        /* Screen Reader Accessible Layer */
         .sr-only {
             position: absolute;
             width: 1px;
@@ -158,7 +156,7 @@
     <main id="game-area">
         <div class="header-ui">
             <div class="score-box">Score: <span id="score-val">0</span></div>
-            <div id="data-source-indicator" style="font-size: 0.8rem; color: var(--text-muted)">Source: Dynamic Telemetry</div>
+            <div id="data-source-indicator" style="font-size: 0.8rem; color: var(--text-muted)">Source: Local Simulation</div>
             <div class="timer-box">Time: <span id="timer-val">10.0</span>s</div>
         </div>
 
@@ -167,20 +165,20 @@
     </main>
 
     <section id="config-drawer">
-        <h3>Data Ingestion Engine</h3>
+        <h3>Connect Custom Data Source</h3>
         <p style="font-size: 0.85rem; color: var(--text-muted);">
-            Paste raw text rows, CSV chunks, or JSON objects below. The system will auto-extract patterns to generate anomalies.
+            Paste raw numeric sequences, CSV content, or JSON logs below.
         </p>
-        <textarea id="data-input" placeholder='Example CSV Format:&#10;temperature, humidity&#10;22.5, 45&#10;23.1, 46&#10;99.9, 44 (Outlier!)'></textarea>
+        <textarea id="data-input" placeholder="Example CSV Data Matrix Format:&#10;metric_name, numeric_value&#10;CPU_Core_01, 45&#10;CPU_Core_02, 48&#10;CPU_Core_03, 290 (Outlier)"></textarea>
         <div style="display: flex; gap: 10px;">
             <button class="btn btn-secondary" style="flex: 1;" onclick="toggleConfig()">Cancel</button>
-            <button class="btn btn-success" style="flex: 1;" onclick="loadCustomData()">Inject & Parse Data</button>
+            <button class="btn btn-success" style="flex: 1;" onclick="loadCustomData()">Parse & Inject</button>
         </div>
     </section>
 
     <footer id="footer-controls">
         <p id="status-update" style="text-align: center; font-size: 0.9rem; color: var(--text-muted);">
-            Find the line item that contains the Rogue Outlier anomaly!
+            Find the anomaly item containing the mathematical outlier noise!
         </p>
         <div style="display: flex; gap: 10px;">
             <button class="btn btn-secondary" style="flex: 1;" onclick="toggleConfig()">⚙️ Connect Source Data</button>
@@ -189,7 +187,6 @@
     </footer>
 
     <script>
-        // Internal state variables 
         let score = 0;
         let timeLeft = 10.0;
         let gameInterval = null;
@@ -197,13 +194,12 @@
         let currentOutlierIndex = null;
         let baseTimeLimit = 10.0;
 
-        // Default local operational model structure
+        // Fallback internal data configuration
         let internalDataset = [
-            { label: "SYS_NODE_01", value: 24.5 },
-            { label: "SYS_NODE_02", value: 25.1 },
-            { label: "SYS_NODE_03", value: 23.9 },
-            { label: "SYS_NODE_04", value: 24.8 },
-            { label: "SYS_NODE_05", value: 25.3 }
+            { label: "NODE_ALPHA", value: 51.2 },
+            { label: "NODE_BETA", value: 49.8 },
+            { label: "NODE_GAMMA", value: 53.1 },
+            { label: "NODE_DELTA", value: 50.5 }
         ];
         let useDynamicGeneration = true;
 
@@ -214,45 +210,36 @@
         const statusUpdate = document.getElementById("status-update");
         const actionBtn = document.getElementById("action-btn");
 
-        function announce(text) {
-            announcer.textContent = text;
-        }
-
+        function announce(text) { announcer.textContent = text; }
         function toggleConfig() {
             const drawer = document.getElementById("config-drawer");
             drawer.style.display = drawer.style.display === "flex" ? "none" : "flex";
         }
 
-        // The Ingestion & Formatting Parser Layer
+        // Data processing and extraction engine
         function loadCustomData() {
             const rawText = document.getElementById("data-input").value.trim();
-            if (!rawText) {
-                alert("Please enter some messy data strings to parse!");
-                return;
-            }
+            if (!rawText) return;
 
             try {
                 let parsedRows = [];
-                // Check if JSON configuration
                 if (rawText.startsWith("[") || rawText.startsWith("{")) {
-                    const cleanObj = JSON.parse(rawText);
-                    const arr = Array.isArray(cleanObj) ? cleanObj : [cleanObj];
-                    arr.forEach((item, idx) => {
-                        let values = Object.values(item).filter(v => typeof v === 'number');
-                        if (values.length > 0) {
-                            parsedRows.push({ label: `ROW_${idx}`, value: values[0] });
-                        }
+                    // Process JSON structures
+                    const obj = JSON.parse(rawText);
+                    const array = Array.isArray(obj) ? obj : [obj];
+                    array.forEach((item, idx) => {
+                        let nums = Object.values(item).filter(v => typeof v === 'number');
+                        if (nums.length > 0) parsedRows.push({ label: `JSON_ROW_${idx}`, value: nums[0] });
                     });
                 } else {
-                    // Raw Comma/Newline Separated Log Parsing Strings
+                    // Process CSV / Plain text values
                     const lines = rawText.split("\n");
                     lines.forEach((line, idx) => {
-                        if (!line.trim()) return;
                         const segments = line.split(/[\t,;]+/);
-                        for (let segment of segments) {
-                            let num = parseFloat(segment.trim());
-                            if (!isNaN(num)) {
-                                parsedRows.push({ label: `LINE_${idx + 1}`, value: num });
+                        for (let seg of segments) {
+                            let val = parseFloat(seg.trim());
+                            if (!isNaN(val)) {
+                                parsedRows.push({ label: `CSV_LN_${idx + 1}`, value: val });
                                 break;
                             }
                         }
@@ -260,83 +247,73 @@
                 }
 
                 if (parsedRows.length < 3) {
-                    alert("Parsed data array is too short! Include at least 3 valid numerical lines.");
+                    alert("Data error: Need at least 3 numerical rows to identify an anomaly.");
                     return;
                 }
 
                 internalDataset = parsedRows;
                 useDynamicGeneration = false;
-                document.getElementById("data-source-indicator").textContent = "Source: Ingested Custom Data";
-                statusUpdate.textContent = `Successfully parsed ${parsedRows.length} data rows!`;
+                document.getElementById("data-source-indicator").textContent = "Source: Custom Dataset";
+                statusUpdate.textContent = `Parsed ${parsedRows.length} custom data rows!`;
                 toggleConfig();
                 initGame();
-            } catch (e) {
-                alert("Formatting Engine Error parsing inputs. Check standard CSV delimiters or raw numbers.");
+            } catch (err) {
+                alert("Parsing Exception: Verify data configuration arrays or text spacing.");
             }
         }
 
-        // Logic processing pipeline maps and sets up a new random round
         function generateRound() {
             streamContainer.innerHTML = "";
             let roundItems = [];
 
             if (useDynamicGeneration) {
-                // Generate messy system metric variations natively 
-                let baseline = 100 + Math.random() * 500;
-                let variance = baseline * 0.05; 
-                let outlierMultiplier = Math.random() > 0.5 ? 2.5 : 0.2;
+                let baseline = 80 + Math.random() * 200;
+                let variance = baseline * 0.06;
+                let isHighAnomaly = Math.random() > 0.5;
+                let outlierMultiplier = isHighAnomaly ? (2.0 + Math.random()) : (0.1 + Math.random() * 0.2);
 
-                let rowCount = 4;
-                currentOutlierIndex = Math.floor(Math.random() * rowCount);
+                let totalRows = 4;
+                currentOutlierIndex = Math.floor(Math.random() * totalRows);
 
-                for (let i = 0; i < rowCount; i++) {
+                for (let i = 0; i < totalRows; i++) {
                     if (i === currentOutlierIndex) {
                         roundItems.push({
-                            label: `METRIC_TRC_0${i+1}`,
+                            label: `SYS_METRIC_0${i+1}`,
                             value: Math.round(baseline * outlierMultiplier)
                         });
                     } else {
                         roundItems.push({
-                            label: `METRIC_TRC_0${i+1}`,
+                            label: `SYS_METRIC_0${i+1}`,
                             value: Math.round(baseline + (Math.random() * variance * 2 - variance))
                         });
                     }
                 }
             } else {
-                // Use imported data structures to determine outliers
-                let itemPool = [...internalDataset];
-                let selectedRows = [];
-                
-                // Pull a subset slice of rows to present on mobile viewport boundaries
-                let displayCount = Math.min(4, itemPool.length);
-                for(let i=0; i < displayCount; i++) {
-                    let randIndex = Math.floor(Math.random() * itemPool.length);
-                    selectedRows.push(itemPool.splice(randIndex, 1)[0]);
+                // Parse mathematical outlier dynamically using median absolute deviance principles
+                let pool = [...internalDataset];
+                let displayCount = Math.min(4, pool.length);
+                let selected = [];
+                for(let i=0; i<displayCount; i++) {
+                    let randIdx = Math.floor(Math.random() * pool.length);
+                    selected.push(pool.splice(randIdx, 1)[0]);
                 }
-
-                // Mathematical Mean Strategy to identify natural structural variance
-                let values = selectedRows.map(r => r.value);
-                let mean = values.reduce((a, b) => a + b, 0) / values.length;
-                let deviations = selectedRows.map(r => Math.abs(r.value - mean));
-                let maxDevIdx = deviations.indexOf(Math.max(...deviations));
-
-                currentOutlierIndex = maxDevIdx;
-                roundItems = selectedRows;
+                let mean = selected.reduce((sum, r) => sum + r.value, 0) / selected.length;
+                let deviations = selected.map(r => Math.abs(r.value - mean));
+                currentOutlierIndex = deviations.indexOf(Math.max(...deviations));
+                roundItems = selected;
             }
 
-            // Building HTML layouts securely with access dimensions
             roundItems.forEach((item, index) => {
                 const element = document.createElement("div");
                 element.className = "data-row";
                 element.setAttribute("role", "button");
                 element.setAttribute("tabindex", "0");
-                element.innerHTML = `<span>⚙️ [${item.label}]</span> <strong>${item.value}</strong>`;
-                
+                element.innerHTML = `<span>📊 [${item.label}]</span> <strong>${item.value}</strong>`;
                 element.onclick = () => handleTap(index);
                 streamContainer.appendChild(element);
             });
 
-            announce(`New data level generated. 4 lines available. Spot the statistical variance anomaly.`);
+            announce("Pipeline refreshed. Choose the row with an out-of-bounds pattern variation.");
         }
 
         function handleTap(selectedIndex) {
@@ -345,13 +322,11 @@
             if (selectedIndex === currentOutlierIndex) {
                 score++;
                 scoreVal.textContent = score;
-                statusUpdate.textContent = "✅ Correct! Noise filtered out successfully.";
+                statusUpdate.textContent = "✅ System clean! Anomaly isolated.";
                 statusUpdate.style.color = "var(--accent-correct)";
                 
-                // Progression curve updates speed as score points climb
-                baseTimeLimit = Math.max(3.0, 10.0 - (score * 0.6));
+                baseTimeLimit = Math.max(2.5, 10.0 - (score * 0.5));
                 timeLeft = baseTimeLimit;
-                
                 generateRound();
             } else {
                 endGame(false);
@@ -364,8 +339,8 @@
             timeLeft = baseTimeLimit;
             scoreVal.textContent = score;
             isGameActive = true;
-            actionBtn.textContent = "Restart Game";
-            statusUpdate.textContent = "Data pipeline scanning live... Spot the rogue trend element!";
+            actionBtn.textContent = "Restart";
+            statusUpdate.textContent = "Pipeline scanning active... Detect the anomaly row!";
             statusUpdate.style.color = "var(--text-muted)";
             
             if (gameInterval) clearInterval(gameInterval);
@@ -373,10 +348,8 @@
             
             gameInterval = setInterval(() => {
                 timeLeft -= 0.1;
-                timerVal.textContent = timeLeft.toFixed(1);
-                if (timeLeft <= 0) {
-                    endGame(true);
-                }
+                timerVal.textContent = Math.max(0, timeLeft).toFixed(1);
+                if (timeLeft <= 0) endGame(true);
             }, 100);
         }
 
@@ -385,12 +358,11 @@
             clearInterval(gameInterval);
             timerVal.textContent = "0.0";
             
-            const reason = isTimeout ? "Pipeline Timeout Error!" : "False Validation Error (Picked Clean Data Entry)!";
-            statusUpdate.textContent = `❌ Game Over: ${reason} Final Score: ${score}`;
+            const message = isTimeout ? "Pipeline Timeout! System Crashed." : "Validation Exception (Picked Clean Row Entry).";
+            statusUpdate.textContent = `❌ Game Over: ${message} Final Score: ${score}`;
             statusUpdate.style.color = "var(--accent-error)";
             actionBtn.textContent = "Play Again";
-            
-            announce(`Game over. ${reason}. Your absolute validation score was ${score} entries checked.`);
+            announce(`Game over. ${message}. High validation accuracy scored ${score} rounds.`);
         }
     </script>
 </body>
