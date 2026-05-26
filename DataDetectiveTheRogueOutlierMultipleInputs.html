@@ -20,6 +20,7 @@
             margin: 0;
             padding: 0;
             user-select: none;
+            -webkit-user-select: none;
         }
 
         body {
@@ -32,80 +33,85 @@
             flex-direction: column;
         }
 
-        /* 75vh / 25vh Viewport Boundary Split */
+        /* FIXED: Layout split with strict boundaries to eliminate hidden touch barriers */
         #game-area {
-            height: 75vh;
+            height: 70vh;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            overflow-y: auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        #footer-controls {
+            height: 30vh;
+            background-color: var(--card-bg);
+            border-top: 3px solid #334155;
             padding: 15px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            overflow-y: auto;
-        }
-
-        #footer-controls {
-            height: 25vh;
-            background-color: var(--card-bg);
-            border-top: 2px solid #334155;
-            padding: 12px;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            z-index: 10;
+            position: relative;
+            z-index: 5; /* Forces footer actions to stay clickable on top of all streams */
         }
 
         .header-ui {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 5px;
         }
 
-        .score-box { font-size: 1.2rem; font-weight: bold; color: var(--accent-blue); }
-        .timer-box { font-size: 1.2rem; font-weight: bold; color: var(--accent-error); }
+        .score-box { font-size: 1.1rem; font-weight: bold; color: var(--accent-blue); }
+        .timer-box { font-size: 1.1rem; font-weight: bold; color: var(--accent-error); }
 
         #stream-container {
-            flex-grow: 1;
             display: flex;
             flex-direction: column;
-            gap: 10px;
-            justify-content: center;
+            gap: 12px;
+            width: 100%;
         }
 
-        /* Accessible Touch Safety Targets (min-height 58px) */
+        /* FIXED: Enhanced touch target bounds (60px high) with pointer priority */
         .data-row {
             background-color: #273549;
             border: 2px solid #475569;
             border-radius: 8px;
-            min-height: 58px;
-            padding: 10px 15px;
+            min-height: 60px;
+            padding: 12px 15px;
             display: flex;
             align-items: center;
             justify-content: space-between;
             font-family: "Courier New", Courier, monospace;
-            font-size: 0.9rem;
+            font-size: 0.95rem;
             cursor: pointer;
-            transition: background-color 0.2s;
             touch-action: manipulation;
+            position: relative;
+            z-index: 2;
         }
 
         .data-row:active {
-            background-color: #334155;
+            background-color: #3b82f6;
+            border-color: #60a5fa;
         }
 
-        /* Data Modification Configuration Panel */
+        /* FIXED: Modal interface drawer explicitly forces screen interaction overlay priority */
         #config-drawer {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
-            height: 75vh;
-            background-color: var(--bg-color);
-            z-index: 20;
+            height: 100vh;
+            background-color: rgba(15, 23, 42, 0.98);
+            z-index: 9999; 
             padding: 20px;
             display: none;
             flex-direction: column;
-            gap: 10px;
-            border-bottom: 2px solid var(--accent-blue);
+            gap: 15px;
         }
 
         textarea {
@@ -113,25 +119,32 @@
             flex-grow: 1;
             background-color: #1e293b;
             color: #38bdf8;
-            border: 1px solid #475569;
-            padding: 10px;
+            border: 2px solid #475569;
+            padding: 12px;
             font-family: monospace;
-            border-radius: 6px;
+            font-size: 1rem;
+            border-radius: 8px;
             resize: none;
         }
 
+        /* FIXED: Universal Touch buttons explicitly responsive to mobile tap gestures */
         .btn {
             background-color: var(--accent-blue);
             color: white;
             border: none;
-            border-radius: 6px;
-            min-height: 48px;
+            border-radius: 8px;
+            min-height: 55px;
             font-weight: bold;
-            font-size: 1rem;
+            font-size: 1.1rem;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
+            touch-action: manipulation;
+        }
+
+        .btn:active {
+            filter: brightness(1.2);
         }
 
         .btn-secondary { background-color: #475569; }
@@ -161,28 +174,31 @@
         </div>
 
         <div id="stream-container">
-            </div>
+            <p style="text-align:center; color:var(--text-muted); margin-top:20px; font-style:italic;">
+                Tap "Start Game" below to build the data stream.
+            </p>
+        </div>
     </main>
 
     <section id="config-drawer">
-        <h3>Connect Custom Data Source</h3>
-        <p style="font-size: 0.85rem; color: var(--text-muted);">
-            Paste raw numeric sequences, CSV content, or JSON logs below.
+        <h2 style="color:var(--accent-blue);">Connect Custom Kaggle/CSV Data</h2>
+        <p style="font-size: 0.9rem; color: var(--text-muted);">
+            Paste raw text rows, comma-separated configurations (CSV), or data arrays below. The validation engine will immediately re-compile choices around your metric schema definitions.
         </p>
-        <textarea id="data-input" placeholder="Example CSV Data Matrix Format:&#10;metric_name, numeric_value&#10;CPU_Core_01, 45&#10;CPU_Core_02, 48&#10;CPU_Core_03, 290 (Outlier)"></textarea>
-        <div style="display: flex; gap: 10px;">
-            <button class="btn btn-secondary" style="flex: 1;" onclick="toggleConfig()">Cancel</button>
-            <button class="btn btn-success" style="flex: 1;" onclick="loadCustomData()">Parse & Inject</button>
+        <textarea id="data-input" placeholder="Example Kaggle Format:&#10;metric_id, value&#10;SERVER_01, 102&#10;SERVER_02, 98&#10;SERVER_03, 105&#10;SERVER_04, 850 (Outlier)"></textarea>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button class="btn btn-success" onclick="loadCustomData()">Parse & Inject Dataset</button>
+            <button class="btn btn-secondary" onclick="toggleConfig()">Close Layout Panel</button>
         </div>
     </section>
 
     <footer id="footer-controls">
-        <p id="status-update" style="text-align: center; font-size: 0.9rem; color: var(--text-muted);">
-            Find the anomaly item containing the mathematical outlier noise!
+        <p id="status-update" style="text-align: center; font-size: 0.95rem; color: var(--text-muted); padding: 0 5px;">
+            Validation Pipeline Idle. Press Start Game!
         </p>
-        <div style="display: flex; gap: 10px;">
-            <button class="btn btn-secondary" style="flex: 1;" onclick="toggleConfig()">⚙️ Connect Source Data</button>
-            <button class="btn" style="flex: 1;" id="action-btn" onclick="initGame()">Start Game</button>
+        <div style="display: flex; gap: 12px; width: 100%;">
+            <button class="btn btn-secondary" style="flex: 1;" onclick="toggleConfig()">⚙️ Data Src</button>
+            <button class="btn" style="flex: 1; background-color: var(--accent-blue);" id="action-btn" onclick="initGame()">Start Game</button>
         </div>
     </footer>
 
@@ -194,12 +210,12 @@
         let currentOutlierIndex = null;
         let baseTimeLimit = 10.0;
 
-        // Fallback internal data configuration
+        // Default local fallback dataset framework template
         let internalDataset = [
-            { label: "NODE_ALPHA", value: 51.2 },
-            { label: "NODE_BETA", value: 49.8 },
-            { label: "NODE_GAMMA", value: 53.1 },
-            { label: "NODE_DELTA", value: 50.5 }
+            { label: "SYS_NODE_A", value: 42.1 },
+            { label: "SYS_NODE_B", value: 44.5 },
+            { label: "SYS_NODE_C", value: 41.8 },
+            { label: "SYS_NODE_D", value: 43.9 }
         ];
         let useDynamicGeneration = true;
 
@@ -211,20 +227,23 @@
         const actionBtn = document.getElementById("action-btn");
 
         function announce(text) { announcer.textContent = text; }
+        
         function toggleConfig() {
             const drawer = document.getElementById("config-drawer");
             drawer.style.display = drawer.style.display === "flex" ? "none" : "flex";
         }
 
-        // Data processing and extraction engine
+        // The Ingestion Engine: Extracts real numerical anomalies out of raw text matrix structures
         function loadCustomData() {
             const rawText = document.getElementById("data-input").value.trim();
-            if (!rawText) return;
+            if (!rawText) {
+                alert("Please paste data lines first!");
+                return;
+            }
 
             try {
                 let parsedRows = [];
                 if (rawText.startsWith("[") || rawText.startsWith("{")) {
-                    // Process JSON structures
                     const obj = JSON.parse(rawText);
                     const array = Array.isArray(obj) ? obj : [obj];
                     array.forEach((item, idx) => {
@@ -232,14 +251,14 @@
                         if (nums.length > 0) parsedRows.push({ label: `JSON_ROW_${idx}`, value: nums[0] });
                     });
                 } else {
-                    // Process CSV / Plain text values
                     const lines = rawText.split("\n");
                     lines.forEach((line, idx) => {
+                        if (!line.trim()) return;
                         const segments = line.split(/[\t,;]+/);
                         for (let seg of segments) {
                             let val = parseFloat(seg.trim());
                             if (!isNaN(val)) {
-                                parsedRows.push({ label: `CSV_LN_${idx + 1}`, value: val });
+                                parsedRows.push({ label: `ROW_${idx + 1}`, value: val });
                                 break;
                             }
                         }
@@ -247,18 +266,19 @@
                 }
 
                 if (parsedRows.length < 3) {
-                    alert("Data error: Need at least 3 numerical rows to identify an anomaly.");
+                    alert("Parsing Error: Make sure your data contains at least 3 rows with numbers.");
                     return;
                 }
 
                 internalDataset = parsedRows;
                 useDynamicGeneration = false;
-                document.getElementById("data-source-indicator").textContent = "Source: Custom Dataset";
-                statusUpdate.textContent = `Parsed ${parsedRows.length} custom data rows!`;
+                document.getElementById("data-source-indicator").textContent = "Source: Ingested File";
+                statusUpdate.textContent = `Ingested ${parsedRows.length} lines successfully. Press Start!`;
+                statusUpdate.style.color = "var(--accent-correct)";
                 toggleConfig();
                 initGame();
             } catch (err) {
-                alert("Parsing Exception: Verify data configuration arrays or text spacing.");
+                alert("Data format processing exception. Double check your raw text delimiters.");
             }
         }
 
@@ -267,10 +287,11 @@
             let roundItems = [];
 
             if (useDynamicGeneration) {
-                let baseline = 80 + Math.random() * 200;
-                let variance = baseline * 0.06;
+                // Generates dynamic server spikes or dropping metrics
+                let baseline = 60 + Math.random() * 300;
+                let variance = baseline * 0.05;
                 let isHighAnomaly = Math.random() > 0.5;
-                let outlierMultiplier = isHighAnomaly ? (2.0 + Math.random()) : (0.1 + Math.random() * 0.2);
+                let outlierMultiplier = isHighAnomaly ? (2.2 + Math.random()) : (0.05 + Math.random() * 0.15);
 
                 let totalRows = 4;
                 currentOutlierIndex = Math.floor(Math.random() * totalRows);
@@ -278,18 +299,18 @@
                 for (let i = 0; i < totalRows; i++) {
                     if (i === currentOutlierIndex) {
                         roundItems.push({
-                            label: `SYS_METRIC_0${i+1}`,
+                            label: `TELEMETRY_0${i+1}`,
                             value: Math.round(baseline * outlierMultiplier)
                         });
                     } else {
                         roundItems.push({
-                            label: `SYS_METRIC_0${i+1}`,
+                            label: `TELEMETRY_0${i+1}`,
                             value: Math.round(baseline + (Math.random() * variance * 2 - variance))
                         });
                     }
                 }
             } else {
-                // Parse mathematical outlier dynamically using median absolute deviance principles
+                // Custom Data: Slices structural rows and identifies the statistical outlier
                 let pool = [...internalDataset];
                 let displayCount = Math.min(4, pool.length);
                 let selected = [];
@@ -297,23 +318,30 @@
                     let randIdx = Math.floor(Math.random() * pool.length);
                     selected.push(pool.splice(randIdx, 1)[0]);
                 }
+                
                 let mean = selected.reduce((sum, r) => sum + r.value, 0) / selected.length;
                 let deviations = selected.map(r => Math.abs(r.value - mean));
                 currentOutlierIndex = deviations.indexOf(Math.max(...deviations));
                 roundItems = selected;
             }
 
+            // Injects responsive rows explicitly configured to fire touch events instantly
             roundItems.forEach((item, index) => {
                 const element = document.createElement("div");
                 element.className = "data-row";
                 element.setAttribute("role", "button");
                 element.setAttribute("tabindex", "0");
                 element.innerHTML = `<span>📊 [${item.label}]</span> <strong>${item.value}</strong>`;
-                element.onclick = () => handleTap(index);
+                
+                // Binding both pointer event configurations explicitly for swift mobile response
+                element.onclick = (e) => {
+                    e.preventDefault();
+                    handleTap(index);
+                };
                 streamContainer.appendChild(element);
             });
 
-            announce("Pipeline refreshed. Choose the row with an out-of-bounds pattern variation.");
+            announce("Data stream refreshed. Isolate the out-of-bounds metrics entry.");
         }
 
         function handleTap(selectedIndex) {
@@ -322,10 +350,11 @@
             if (selectedIndex === currentOutlierIndex) {
                 score++;
                 scoreVal.textContent = score;
-                statusUpdate.textContent = "✅ System clean! Anomaly isolated.";
+                statusUpdate.textContent = "✅ Correct! Noise variance isolated.";
                 statusUpdate.style.color = "var(--accent-correct)";
                 
-                baseTimeLimit = Math.max(2.5, 10.0 - (score * 0.5));
+                // Progression engine scales game difficulty speed incrementally
+                baseTimeLimit = Math.max(2.0, 10.0 - (score * 0.7));
                 timeLeft = baseTimeLimit;
                 generateRound();
             } else {
@@ -339,8 +368,8 @@
             timeLeft = baseTimeLimit;
             scoreVal.textContent = score;
             isGameActive = true;
-            actionBtn.textContent = "Restart";
-            statusUpdate.textContent = "Pipeline scanning active... Detect the anomaly row!";
+            actionBtn.textContent = "Restart Loop";
+            statusUpdate.textContent = "Analyzing real-time stream... Find the outlier row!";
             statusUpdate.style.color = "var(--text-muted)";
             
             if (gameInterval) clearInterval(gameInterval);
@@ -358,11 +387,11 @@
             clearInterval(gameInterval);
             timerVal.textContent = "0.0";
             
-            const message = isTimeout ? "Pipeline Timeout! System Crashed." : "Validation Exception (Picked Clean Row Entry).";
-            statusUpdate.textContent = `❌ Game Over: ${message} Final Score: ${score}`;
+            const message = isTimeout ? "Pipeline Timeout! Stream crashed." : "Data Validation Error! Checked a clean row.";
+            statusUpdate.textContent = `❌ Over: ${message} Score: ${score}`;
             statusUpdate.style.color = "var(--accent-error)";
-            actionBtn.textContent = "Play Again";
-            announce(`Game over. ${message}. High validation accuracy scored ${score} rounds.`);
+            actionBtn.textContent = "Run Pipeline Again";
+            announce(`Game over. ${message} Final accuracy processing score: ${score}`);
         }
     </script>
 </body>
