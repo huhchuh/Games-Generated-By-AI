@@ -203,7 +203,35 @@
     }
 
     // Ingestion Layer via Async Fetch API
-    async function fetchFromURL() {
+async function fetchFromURL() {
+    let url = document.getElementById('url-input').value;
+    if (!url) {
+        alert('Please specify a URL source target first.');
+        return;
+    }
+
+    try {
+        document.getElementById('output-display').innerText = "Fetching data streams via proxy server...";
+        
+        // Fix: Route the request through a public CORS proxy wrapper
+        const corsProxy = "https://cors-anywhere.herokuapp.com/";
+        
+        // Clean URL formatting if necessary, then append to proxy
+        const response = await fetch(corsProxy + url);
+        const textData = await response.text();
+        
+        // Map fetched response text straight to parsing interface
+        document.getElementById('raw-input').value = textData;
+        processRawData();
+    } catch (error) {
+        document.getElementById('output-display').innerText = 
+            `CORS restriction or proxy error blocked request.\n` +
+            `Fix: Manually scrape/copy the source data directly into the Paste area below.\n\nError details: ${error.message}`;
+    }
+}
+
+
+  /* async function fetchFromURL() {
         const url = document.getElementById('url-input').value;
         if (!url) {
             alert('Please specify a URL source target first.');
@@ -223,7 +251,7 @@
                 `CORS / Fetch Restriction Blocked Request.\n` +
                 `Fix: Manually scrape/copy the source data directly into the Paste area below.\n\nError details: ${error.message}`;
         }
-    }
+    } */
 
     // Visualization Layer: Renders structured arrays directly onto canvas elements
     function renderChart() {
