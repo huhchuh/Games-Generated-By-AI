@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gnome Bounce: Toadstool Trampoline</title>
+    <style>
+        /* Mobile-Responsive Reset & High Contrast Theme */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* 72vh / 28vh Split Layout to completely prevent touch overlap errors */
+        #game-window {
+            height: 72vh;
+            position: relative;
+            background: linear-gradient(to bottom, #1a0033, #330066);
+            border-bottom: 4px solid #ffcc00;
+            overflow: hidden;
+        }
+
+        #control-deck {
+            height: 28vh;
+            background-color: #1e1e1e;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            align-items: center;
+            padding: 10px;
+            z-index: 10;
+        }
+
+        /* Visual Elements */
+        #score-board {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #ffcc00;
+            text-align: center;
+        }
+
+        #gnome-ball {
+            width: 40px;
+            height: 40px;
+            background-color: #ff3366;
+            border: 3px solid #ffffff;
+            border-radius: 50%;
+            position: absolute;
+            top: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        #trampoline {
+            width: 100px;
+            height: 20px;
+            background-color: #00ffcc;
+            border: 3px solid #ffffff;
+            border-radius: 10px;
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            transition: left 0.1s ease-out;
+        }
+
+        /* Large Touch Safety Targets */
+        .btn-container {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .action-btn {
+            flex: 1;
+            min-height: 60px; /* Exceeds the standard 48px target for touch safety */
+            background-color: #333333;
+            border: 3px solid #00ffcc;
+            border-radius: 12px;
+            color: #00ffcc;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            touch-action: none;
+        }
+
+        .action-btn:active {
+            background-color: #00ffcc;
+            color: #121212;
+        }
+
+        /* Utilities */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="accessibility-announcer" class="sr-only" aria-live="polite"></div>
+
+    <main id="game-window">
+        <div id="gnome-ball" aria-hidden="true">🎅</div>
+        <div id="trampoline" aria-hidden="true"></div>
+    </main>
+
+    <footer id="control-deck">
+        <div id="score-board">
+            Bounces: <span id="score-counter">0</span> | Lives: <span id="life-counter">3</span>
+        </div>
+
+        <div class="btn-container">
+            <button class="action-btn" id="btn-left" aria-label="Move Trampoline Left">◀ LEFT</button>
+            <button class="action-btn" id="btn-right" aria-label="Move Trampoline Right">RIGHT ▶</button>
+        </div>
+    </footer>
+
+    <script>
+        // Game Configuration & State Variables
+        const gameWindow = document.getElementById('game-window');
+        const gnomeBall = document.getElementById('gnome-ball');
+        const trampoline = document.getElementById('trampoline');
+        const scoreCounter = document.getElementById('score-counter');
+        const lifeCounter = document.getElementById('life-counter');
+        const announcer = document.getElementById('accessibility-announcer');
+
+        let score = 0;
+        let lives = 3;
+        let isGameOver = false;
+
+        // Physics variables
+        let ballX = gameWindow.clientWidth / 2;
+        let ballY = 50;
+        let ballSpeedX = 3;
+        let ballSpeedY = 4;
+        const gravity = 0.15;
+
+        let trampolineX = gameWindow.clientWidth / 2;
+        const trampolineSpeed = 40; 
+        const trampolineWidth = 100;
+
+        // Setup Positions
+        function initLayout() {
+            updateBallPosition();
+            updateTrampolinePosition();
+        }
+
+        function updateBallPosition() {
+            gnomeBall.style.left = `${ballX}px`;
+            gnomeBall.style.top = `${ballY}px`;
+        }
+
+        function updateTrampolinePosition() {
+            trampoline.style.left = `${trampolineX}px`;
+        }
+
+        // Move Trampoline Left/Right via Buttons
+        document.getElementById('btn-left').addEventListener('click', () => moveTrampoline(-trampolineSpeed));
+        document.getElementById('btn-right').addEventListener('click', () => moveTrampoline(trampolineSpeed));
+
+        function moveTrampoline(amount) {
+            if (isGameOver) return;
+            trampolineX += amount;
+            
+            // Boundary constraints
+            const minX = trampolineWidth / 2;
+            const maxX = gameWindow.clientWidth - (trampolineWidth / 2);
+            if (trampolineX < minX) trampolineX = minX;
+            if (trampolineX > maxX) trampolineX = maxX;
+
+            updateTrampolinePosition();
+        }
+
+        // Logic Loop
+        function gameLoop() {
+            if (isGameOver) return;
+
+            // Apply gravity and physics velocities
+            ballSpeedY += gravity;
+            ballX += ballSpeedX;
+            ballY += ballSpeedY;
+
+            const ballRadius = 20;
+            const windowWidth = gameWindow.clientWidth;
+            const windowHeight = gameWindow.clientHeight;
+
+            // Wall Collisions (Left / Right)
+            if (ballX - ballRadius <= 0) {
+                ballX = ballRadius;
+                ballSpeedX = -ballSpeedX;
+            } else if (ballX + ballRadius >= windowWidth) {
+                ballX = windowWidth - ballRadius;
+                ballSpeedX = -ballSpeedX;
+            }
+
+            // Ceiling Collision
+            if (ballY - ballRadius <= 0) {
+                ballY = ballRadius;
+                ballSpeedY = -ballSpeedY;
+            }
+
+            // Trampoline Floor Logic Check
+            const trampTop = windowHeight - 40; // Approx location of trampoline top
+            if (ballY + ballRadius >= trampTop && ballY - ballRadius <= trampTop + 20) {
+                // Is the ball inside the horizontal bounds of the trampoline?
+                if (ballX >= (trampolineX - trampolineWidth / 2) && ballX <= (trampolineX + trampolineWidth / 2)) {
+                    
+                    // Logic puzzle sweet spot: Hit center for higher bounce, edges for weird angles
+                    let hitOffset = (ballX - trampolineX) / (trampolineWidth / 2);
+                    ballSpeedX = hitOffset * 5; 
+                    
+                    ballSpeedY = -7; // Bounce!
+                    ballY = trampTop - ballRadius;
+                    
+                    score++;
+                    scoreCounter.textContent = score;
+                    announcer.textContent = `Bounced! Total bounces: ${score}`;
+                }
+            }
+
+            // Missed the trampoline (Bottom Boundary Floor)
+            if (ballY - ballRadius > windowHeight) {
+                lives--;
+                lifeCounter.textContent = lives;
+
+                if (lives <= 0) {
+                    isGameOver = true;
+                    announcer.textContent = `Game Over. Final score is ${score} bounces. Click anywhere to reset.`;
+                    alert(`The Gnome fell into the bog! Final Score: ${score}`);
+                    resetGame();
+                } else {
+                    announcer.textContent = `Gnome fell! ${lives} lives remaining.`;
+                    respawnBall();
+                }
+            }
+
+            updateBallPosition();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function respawnBall() {
+            ballX = gameWindow.clientWidth / 2;
+            ballY = 50;
+            ballSpeedX = (Math.random() - 0.5) * 6;
+            ballSpeedY = 4;
+        }
+
+        function resetGame() {
+            score = 0;
+            lives = 3;
+            isGameOver = false;
+            scoreCounter.textContent = score;
+            lifeCounter.textContent = lives;
+            respawnBall();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Initialize and Run
+        window.addEventListener('resize', initLayout);
+        initLayout();
+        respawnBall();
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
