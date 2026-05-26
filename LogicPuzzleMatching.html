@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gnome Match: Mushroom Madness</title>
+    <style>
+        /* --- Mobile Layout & High Contrast Theme --- */
+        :root {
+            --bg-color: #121214;
+            --card-back: #2a2a32;
+            --card-text: #fff;
+            --accent-color: #00f3ff; /* Neon Teal for visibility */
+            --success-color: #39ff14; /* Neon Green */
+            --text-main: #ffffff;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            /* Prevents the mobile browser from scaling/zooming accidentally while tapping fast */
+            touch-action: manipulation; 
+        }
+
+        header {
+            text-align: center;
+            padding: 10px;
+            height: 12vh;
+        }
+
+        h1 {
+            margin: 5px 0;
+            font-size: 1.5rem;
+            color: var(--accent-color);
+        }
+
+        /* --- Game Grid --- */
+        #game-container {
+            width: 90vw;
+            max-width: 400px;
+            height: 60vh;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(4, 1fr);
+            gap: 10px;
+            box-sizing: border-box;
+            padding: 5px;
+        }
+
+        /* Large, highly interactive touch hitboxes for cards */
+        .card {
+            background-color: var(--card-back);
+            border: 3px solid var(--accent-color);
+            border-radius: 8px;
+            font-size: 2rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: transparent;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s;
+            /* Ensure text isn't highlightable on long-press mobile actions */
+            user-select: none; 
+            -webkit-user-select: none;
+        }
+
+        .card.flipped {
+            color: var(--card-text);
+            background-color: #3d3d4d;
+        }
+
+        .card.matched {
+            color: var(--card-text);
+            background-color: #1b3d22;
+            border-color: var(--success-color);
+            visibility: visible; /* Keeps layout intact but visually flags success */
+        }
+
+        /* --- Control Deck Area --- */
+        #control-deck {
+            height: 20vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            z-index: 10; /* Ensures buttons stay on top of any layout exceptions */
+        }
+
+        .btn {
+            background-color: var(--accent-color);
+            color: #000;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 25px;
+            cursor: pointer;
+            min-height: 48px; /* Mobile accessibility touch standard target size */
+        }
+
+        .btn:active {
+            background-color: #00b6c2;
+        }
+
+        /* Screen reader utility text helper (invisible to sighted users) */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>🍄 Gnome Matcher</h1>
+        <div id="score-board">Pairs Matched: <span id="score">0</span> / 6</div>
+    </header>
+
+    <main id="game-container" role="grid" aria-label="Gnome Matching Puzzle Grid"></main>
+
+    <footer id="control-deck">
+        <button class="btn" onclick="resetGame()">Restart Game</button>
+    </footer>
+
+    <div id="accessible-announcer" class="sr-only" aria-live="polite"></div>
+
+    <script>
+        // The silly dataset (Gnomes and their item matches)
+        // Feel free to modify these arrays or patterns below!
+        const puzzleData = [
+            { id: 1, symbol: "🧙‍♂️", matchGroup: "gnome1" },
+            { id: 2, symbol: "🍄", matchGroup: "gnome1" }, // Gnome 1 loves Mushrooms
+            { id: 3, symbol: "🧝‍♀️", matchGroup: "gnome2" },
+            { id: 4, symbol: "💎", matchGroup: "gnome2" }, // Gnome 2 loves Gems
+            { id: 5, symbol: "🎅", matchGroup: "gnome3" },
+            { id: 6, symbol: "🦡", matchGroup: "gnome3" }, // Gnome 3 loves Badgers
+            { id: 7, symbol: "🧙", matchGroup: "gnome4" },
+            { id: 8, symbol: "🐸", matchGroup: "gnome4" }, // Gnome 4 loves Frogs
+            { id: 9, symbol: "🥷", matchGroup: "gnome5" },
+            { id: 10, symbol: "🦉", matchGroup: "gnome5" }, // Gnome 5 loves Owls
+            { id: 11, symbol: "💂", matchGroup: "gnome6" },
+            { id: 12, symbol: "🛡️", matchGroup: "gnome6" }  // Gnome 6 loves Shields
+        ];
+
+        let flippedCards = [];
+        let matchedCount = 0;
+        let canFlip = true;
+
+        const container = document.getElementById("game-container");
+        const scoreDisplay = document.getElementById("score");
+        const announcer = document.getElementById("accessible-announcer");
+
+        function initGame() {
+            container.innerHTML = "";
+            flippedCards = [];
+            matchedCount = 0;
+            canFlip = true;
+            scoreDisplay.textContent = "0";
+            
+            // Suffle items dynamically
+            const shuffled = [...puzzleData].sort(() => Math.random() - 0.5);
+
+            shuffled.forEach((item, index) => {
+                const card = document.createElement("button");
+                card.classList.add("card");
+                card.dataset.matchGroup = item.matchGroup;
+                card.dataset.symbol = item.symbol;
+                card.dataset.index = index;
+                
+                // Accessible Label properties for screen readers
+                card.setAttribute("aria-label", `Card ${index + 1}: Hidden`);
+                card.setAttribute("role", "gridcell");
+
+                card.addEventListener("click", () => handleCardClick(card));
+                container.appendChild(card);
+            });
+
+            announceToScreenReader("New puzzle grid initialized. Select a card to find the matching logic pairs.");
+        }
+
+        function handleCardClick(card) {
+            if (!canFlip || card.classList.contains("flipped") || card.classList.contains("matched")) return;
+
+            // Flip the selected card
+            card.classList.add("flipped");
+            card.textContent = card.dataset.symbol;
+            card.setAttribute("aria-label", `Revealed: ${card.dataset.symbol}`);
+            flippedCards.push(card);
+
+            if (flippedCards.length === 2) {
+                canFlip = false;
+                checkMatch();
+            }
+        }
+
+        function checkMatch() {
+            const [card1, card2] = flippedCards;
+            const isMatch = card1.dataset.matchGroup === card2.dataset.matchGroup;
+
+            if (isMatch) {
+                // Success actions
+                card1.classList.add("matched");
+                card2.classList.add("matched");
+                matchedCount++;
+                scoreDisplay.textContent = matchedCount;
+                
+                announceToScreenReader(`Match found! ${card1.dataset.symbol} and ${card2.dataset.symbol} belong together.`);
+
+                flippedCards = [];
+                canFlip = true;
+
+                if (matchedCount === 6) {
+                    announceToScreenReader("Congratulations! You've matched all the gnomes to their items and completed the puzzle!");
+                }
+            } else {
+                // Mismatch action - pause slightly so the mobile user can see what they flipped
+                announceToScreenReader(`Not a match. ${card1.dataset.symbol} and ${card2.dataset.symbol}. Flipping back over.`);
+                
+                setTimeout(() => {
+                    card1.classList.remove("flipped");
+                    card2.classList.remove("flipped");
+                    card1.textContent = "";
+                    card2.textContent = "";
+                    card1.setAttribute("aria-label", `Card ${card1.dataset.index + 1}: Hidden`);
+                    card2.setAttribute("aria-label", `Card ${card2.dataset.index + 1}: Hidden`);
+                    
+                    flippedCards = [];
+                    canFlip = true;
+                }, 1000);
+            }
+        }
+
+        function announceToScreenReader(message) {
+            announcer.textContent = message;
+        }
+
+        function resetGame() {
+            initGame();
+        }
+
+        // Start game on page load
+        window.onload = initGame;
+    </script>
+</body>
+</html>
