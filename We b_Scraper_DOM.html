@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web HTML Scraper & Correlation Analyzer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #121214;
+            --card-bg: #1a1a1e;
+            --accent-color: #ff3b30;
+            --text-color: #e2e8f0;
+            --border-color: #2d2d34;
+        }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 30px; }
+        h1 { margin-bottom: 5px; color: #fff; }
+        .grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        @media (min-width: 768px) { .grid { grid-template-columns: 1fr 1fr; } }
+        .card { background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 20px; }
+        input[type="text"] {
+            width: 100%; padding: 12px; background-color: #0f0f11; color: #fff;
+            border: 1px solid var(--border-color); border-radius: 6px; box-sizing: border-box; margin-bottom: 10px;
+        }
+        button {
+            background: linear-gradient(135deg, #cc0000, var(--accent-color));
+            color: white; border: none; padding: 12px 20px; border-radius: 6px;
+            cursor: pointer; font-weight: bold; margin-top: 5px; width: 100%;
+        }
+        button:hover { opacity: 0.9; }
+        .chart-container { position: relative; height: 320px; width: 100%; }
+        .output-box {
+            max-height: 250px; overflow-y: auto; background-color: #0f0f11;
+            padding: 10px; border-radius: 6px; font-family: monospace;
+            white-space: pre-wrap; font-size: 13px; border: 1px solid var(--border-color);
+        }
+        .label { font-weight: bold; margin-bottom: 8px; display: block; color: #ff453a; }
+        .status-msg { margin-top: 10px; font-style: italic; color: #a0aec0; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Live Web HTML Scraper</h1>
+        <p>Extract structural DOM metrics from live links to reveal correlations.</p>
+    </header>
+
+    <div class="grid">
+        <div class="card">
+            <span class="label">1. Target Ingestion Endpoint</span>
+            <input type="text" id="url-input" value="https://www.cnn.com">
+            <button onclick="scrapeAndAnalyze()">Scrape & Analyze Live Site</button>
+            <div id="status-output" class="status-msg">Ready to scan target host...</div>
+        </div>
+
+        <div class="card">
+            <span class="label">2. Correlation Matrix (Headline Character Length vs Numeric Density)</span>
+            <div class="chart-container">
+                <canvas id="correlationChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top: 20px;">
+        <span class="label">3. Sanitized Structured Data Stream</span>
+        <div style="margin-bottom: 15px;">
+            <button onclick="exportData('json')" style="width: auto; display: inline-block; margin-right: 10px; padding: 8px 15px;">Export JSON</button>
+            <button onclick="exportData('csv')" style="width: auto; display: inline-block; padding: 8px 15px; background: #4a5568;">Export CSV</button>
+        </div>
+        <div id="output-display" class="output-box">Structured data layout transforms will print here...</div>
+    </div>
+</div>
+
+<script>
+    let globalCleanedData = [];
+    let correlationChart = null;
+
+    async function scrapeAndAnalyze() {
+        const targetUrl = document.getElementById('url-input').value.trim();
+        const statusDiv = document.getElementById('status-output');
+        const displayDiv = document.getElementById('output-display');
+
+        if (!targetUrl) {
+            alert("Please provide a valid target URL link.");
+            return;
+        }
+
+        statusDiv.innerText = "Connecting to open proxy pipeline...";
+        displayDiv.innerText = "Awaiting inbound payloads...";
+
+        try {
+            // Using AllOrigins open wrapper to circumvent CORS blockades seamlessly
+            const proxyEndpoint = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+            const response = await fetch(proxyEndpoint);
+            
+            if (!response.ok) throw new Error("Network proxy rejected request stream.");
+            
+            const rawPayload = await response.json();
+            const htmlMarkup = rawPayload.contents;
+
+            if (!htmlMarkup) {
+                throw new Error("Target site returned empty headers or structural block.");
+            }
+
+            statusDiv.innerText = "Parsing structural markup components...";
+            
+            // Transform raw string markup into a temporary virtual DOM object tree
+            const virtualParser = new DOMParser();
+            const virtualDoc = virtualParser.parseFromString(htmlMarkup, 'text/html');
+
+            // Scrape text nodes likely to be headlines/links across typical news layouts
+            const layoutAnchors = virtualDoc.querySelectorAll('a, h1, h2, h3, .cd__headline-text, .container__headline-text');
+            const metricsArray = [];
+            const seenTexts = new Set();
+
+            layoutAnchors.forEach(node => {
+                const innerText = node.textContent ? node.textContent.trim() : "";
+                
+                // Content Filter: Drop structural noise fragments, empty zones, or repetitive links
+                if (innerText.length < 15 || innerText.length > 150 || seenTexts.has(innerText)) return;
+                seenTexts.add(innerText);
+
+                // Run regex metrics check: Count the exact number of numbers/digits present in this string segment
+                const digitsMatched = innerText.match(/\d/g);
+                const numberCount = digitsMatched ? digitsMatched.length : 0;
+
+                metricsArray.push({
+                    headline_snippet: innerText.substring(0, 50) + "...",
+                    char_length: innerText.length,
+                    numeric_density: numberCount
+                });
+            });
+
+            if (metricsArray.length === 0) {
+                statusDiv.innerText = "Analysis failed: No readable text blocks passed the layout validation rules.";
+                return;
+            }
+
+            // Sort systematically by character string footprint length
+            globalCleanedData = metricsArray.sort((a, b) => a.char_length - b.char_length);
+
+            statusDiv.innerText = `Successfully captured ${globalCleanedData.length} unique items!`;
+            
+            // Populates Sections 2 and 3 instantly
+            displayJSON();
+            renderChart();
+
+        } catch (err) {
+            statusDiv.innerText = "Pipeline error occurred.";
+            displayDiv.innerText = `Error Log Details:\n${err.message}\n\nTip: Double check connection speed or site availability.`;
+        }
+    }
+
+    function renderChart() {
+        const ctx = document.getElementById('correlationChart').getContext('2d');
+        
+        // Map elements directly into the X/Y axes config parameters
+        const plotPoints = globalCleanedData.map(item => ({
+            x: item.char_length,
+            y: item.numeric_density
+        }));
+
+        if (correlationChart) correlationChart.destroy();
+
+        correlationChart = new Chart(ctx, {
+            type: 'scatter',
+            data: {
+                datasets: [{
+                    label: 'CNN Story Nodes',
+                    data: plotPoints,
+                    backgroundColor: '#ff453a',
+                    borderColor: '#cc0000',
+                    pointRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { 
+                        title: { display: true, text: 'Headline Length (Characters)', color: '#a0aec0' },
+                        grid: { color: '#2d2d34' }, ticks: { color: '#a0aec0' }
+                    },
+                    y: { 
+                        title: { display: true, text: 'Numbers Used (Digit Density)', color: '#a0aec0' },
+                        grid: { color: '#2d2d34' }, ticks: { color: '#a0aec0' },
+                        suggestedMax: 5
+                    }
+                },
+                plugins: { legend: { labels: { color: '#fff' } } }
+            }
+        });
+    }
+
+    function displayJSON() {
+        document.getElementById('output-display').innerText = JSON.stringify(globalCleanedData, null, 4);
+    }
+
+    function exportData(format) {
+        if (globalCleanedData.length === 0) {
+            alert("No structured rows isolated yet.");
+            return;
+        }
+
+        let payloadText = "";
+        let mime = "text/plain";
+
+        if (format === 'json') {
+            payloadText = JSON.stringify(globalCleanedData, null, 2);
+            mime = "application/json";
+        } else {
+            payloadText = "headline_snippet,char_length,numeric_density\n" + 
+                globalCleanedData.map(r => `"${r.headline_snippet.replace(/"/g, '""')}",${r.char_length},${r.numeric_density}`).join('\n');
+            mime = "text/csv";
+        }
+
+        const blob = new Blob([payloadText], { type: mime });
+        const downloadElement = document.createElement("a");
+        downloadElement.href = URL.createObjectURL(blob);
+        downloadElement.download = `web_scrape_extract.${format}`;
+        downloadElement.click();
+    }
+</script>
+</body>
+</html>
