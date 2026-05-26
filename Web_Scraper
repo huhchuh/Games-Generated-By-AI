@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal Data Scraper & Correlation Analyzer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #121214;
+            --card-bg: #1a1a1e;
+            --accent-color: #00f2fe;
+            --text-color: #e2e8f0;
+            --border-color: #2d2d34;
+        }
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        h1 { margin-bottom: 5px; color: #fff; }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+        @media (min-width: 768px) {
+            .grid { grid-template-columns: 1fr 1fr; }
+        }
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            background-color: #0f0f11;
+            color: #a0aec0;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 10px;
+            box-sizing: border-box;
+            font-family: monospace;
+            resize: vertical;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            background-color: #0f0f11;
+            color: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
+        button {
+            background: linear-gradient(135deg, #0072ff, var(--accent-color));
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-right: 10px;
+            margin-top: 5px;
+        }
+        button:hover { opacity: 0.9; }
+        .button-group { margin-top: 10px; }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+        .output-box {
+            max-height: 250px;
+            overflow-y: auto;
+            background-color: #0f0f11;
+            padding: 10px;
+            border-radius: 6px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            font-size: 13px;
+            border: 1px solid var(--border-color);
+        }
+        .label {
+            font-weight: bold;
+            margin-bottom: 8px;
+            display: block;
+            color: var(--accent-color);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Universal Data Engine</h1>
+        <p>Ingest messy formats, clean noise, and reveal hidden trend correlations.</p>
+    </header>
+
+    <div class="grid">
+        <div class="card">
+            <span class="label">1. Ingest Messy Data Source</span>
+            <label for="url-input" class="visually-hidden">Target URL</label>
+            <input type="text" id="url-input" placeholder="Enter target URL (e.g., https://api.example.com/data)...">
+            <button onclick="fetchFromURL()">Fetch & Parse URL</button>
+            
+            <div style="margin-top: 15px;">
+                <span class="label">OR Paste Raw Text List (JSON, CSV, or log fragments)</span>
+                <label for="raw-input" class="visually-hidden">Raw Text Input</label>
+                <textarea id="raw-input" placeholder="Example format:&#10;[2026-05-26] event: job_listing | pay: 120000 | responses: 45&#10;TIMEOUT ERROR 404 (will be dropped)&#10;[2026-05-26] event: job_listing | pay: 85000 | responses: 120"></textarea>
+            </div>
+            <div class="button-group">
+                <button onclick="processRawData()">Clean & Analyze Ingested Data</button>
+                <button onclick="loadSampleData()" style="background: #4a5568;">Load Sample Log Data</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <span class="label">2. Correlation Picture (Scatter Plot)</span>
+            <div class="chart-container">
+                <canvas id="correlationChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top: 20px;">
+        <span class="label">3. Cleaned Structured Exports</span>
+        <div class="button-group" style="margin-bottom: 15px;">
+            <button onclick="exportData('json')">Export as Clean JSON</button>
+            <button onclick="exportData('csv')">Export as Clean CSV</button>
+        </div>
+        <div id="output-display" class="output-box">Clean records will populate here after processing...</div>
+    </div>
+</div>
+
+<script>
+    let globalCleanedData = [];
+    let correlationChart = null;
+
+    // Sample messy log telemetry to quickly simulate scraping unformatted listings
+    function loadSampleData() {
+        const sample = `SYSTEM_STARTUP // Runtime OK\n` +
+            `[LOG] event_type: opportunity_post | numeric_x: 45000 | numeric_y: 190 | status: active\n` +
+            `CRITICAL_WARN: Database latency detected (Dropped record fallback)\n` +
+            `[LOG] event_type: opportunity_post | numeric_x: 135000 | numeric_y: 40 | status: active\n` +
+            `[LOG] event_type: opportunity_post | numeric_x: 85000 | numeric_y: 110 | status: active\n` +
+            `[LOG] event_type: opportunity_post | numeric_x: 160000 | numeric_y: 22 | status: active\n` +
+            `[LOG] event_type: opportunity_post | numeric_x: 60000 | numeric_y: 145 | status: active\n` +
+            `[LOG] event_type: opportunity_post | numeric_x: 105000 | numeric_y: 75 | status: active\n` +
+            `SYSTEM_SHUTDOWN // Cache Flushed`;
+        document.getElementById('raw-input').value = sample;
+    }
+
+    // Dynamic Processing Pipeline: Cleans noise, filters parameters, maps metrics
+    function processRawData() {
+        const rawText = document.getElementById('raw-input').value;
+        const lines = rawText.split('\n');
+        const cleanedRecords = [];
+
+        lines.forEach(line => {
+            // Data Filter: Ignore lines that do not match our required telemetry markers
+            if (!line.includes('numeric_x') || !line.includes('numeric_y')) return;
+
+            try {
+                // Regular Expression parsing to grab numeric data variables dynamically
+                const xMatch = line.match(/numeric_x:\s*(\d+)/);
+                const yMatch = line.match(/numeric_y:\s*(\d+)/);
+                
+                if (xMatch && yMatch) {
+                    const xVal = parseInt(xMatch[1], 10);
+                    const yVal = parseInt(yMatch[1], 10);
+
+                    cleanedRecords.push({
+                        metric_x: xVal,
+                        metric_y: yVal,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+            } catch (e) {
+                console.error("Skipping corrupted row fragment:", e);
+            }
+        });
+
+        // Sort data chronologically/numerically by metric_x value
+        globalCleanedData = cleanedRecords.sort((a, b) => a.metric_x - b.metric_x);
+
+        // Update UI Outputs
+        displayJSON();
+        renderChart();
+    }
+
+    // Ingestion Layer via Async Fetch API
+    async function fetchFromURL() {
+        const url = document.getElementById('url-input').value;
+        if (!url) {
+            alert('Please specify a URL source target first.');
+            return;
+        }
+
+        try {
+            document.getElementById('output-display').innerText = "Fetching data streams from target server...";
+            const response = await fetch(url);
+            const textData = await response.text();
+            
+            // Map fetched response text straight to parsing interface
+            document.getElementById('raw-input').value = textData;
+            processRawData();
+        } catch (error) {
+            document.getElementById('output-display').innerText = 
+                `CORS / Fetch Restriction Blocked Request.\n` +
+                `Fix: Manually scrape/copy the source data directly into the Paste area below.\n\nError details: ${error.message}`;
+        }
+    }
+
+    // Visualization Layer: Renders structured arrays directly onto canvas elements
+    function renderChart() {
+        const ctx = document.getElementById('correlationChart').getContext('2d');
+        
+        // Transform our clean array elements into X/Y coordinate pairs for Chart.js
+        const chartDataPoints = globalCleanedData.map(item => ({
+            x: item.metric_x,
+            y: item.metric_y
+        }));
+
+        if (correlationChart) {
+            correlationChart.destroy(); // Clear cache instances when reprocessing new inputs
+        }
+
+        correlationChart = new Chart(ctx, {
+            type: 'scatter',
+            data: {
+                datasets: [{
+                    label: 'Opportunities Metric Correlation (e.g., Valuation vs Velocity)',
+                    data: chartDataPoints,
+                    backgroundColor: '#00f2fe',
+                    borderColor: '#0072ff',
+                    pointRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { 
+                        title: { display: true, text: 'Metric X Value (e.g., Reward/Pay)', color: '#a0aec0' },
+                        grid: { color: '#2d2d34' },
+                        ticks: { color: '#a0aec0' }
+                    },
+                    y: { 
+                        title: { display: true, text: 'Metric Y Value (e.g., Competition/Volume)', color: '#a0aec0' },
+                        grid: { color: '#2d2d34' },
+                        ticks: { color: '#a0aec0' }
+                    }
+                },
+                plugins: {
+                    legend: { labels: { color: '#fff' } }
+                }
+            }
+        });
+    }
+
+    function displayJSON() {
+        const display = document.getElementById('output-display');
+        if(globalCleanedData.length === 0) {
+            display.innerText = "No coherent telemetry data could be isolated from input lines.";
+            return;
+        }
+        display.innerText = JSON.stringify(globalCleanedData, null, 4);
+    }
+
+    // Multi-format clean array exporter conversions (CSV / JSON File Generator downloads)
+    function exportData(format) {
+        if (globalCleanedData.length === 0) {
+            alert("No data available to translate. Please clean a dataset first.");
+            return;
+        }
+
+        let outputContent = "";
+        let mimeType = "text/plain";
+        let fileName = `cleaned_analytics_export.${format}`;
+
+        if (format === 'json') {
+            outputContent = JSON.stringify(globalCleanedData, null, 2);
+            mimeType = "application/json";
+        } else if (format === 'csv') {
+            const headers = "metric_x,metric_y,timestamp\n";
+            const rows = globalCleanedData.map(r => `${r.metric_x},${r.metric_y},${r.timestamp}`).join('\n');
+            outputContent = headers + rows;
+            mimeType = "text/csv";
+        }
+
+        const blob = new Blob([outputContent], { type: mimeType });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = fileName;
+        link.click();
+        URL.revokeObjectURL(link.href);
+    }
+</script>
+</body>
+</html>
